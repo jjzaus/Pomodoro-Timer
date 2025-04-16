@@ -131,10 +131,6 @@
   let timer1Remaining = timer1Duration;
   let timer2Remaining = timer2Duration;
 
-  // Add audio elements
-  const buzzerSound = new Audio('path/to/buzzer.mp3');
-  const dingSound = new Audio('path/to/ding.mp3');
-
   function updateCircleProgress(remaining, isTimer1) {
     const duration = isTimer1 ? timer1Duration : timer2Duration;
     const circumference = isTimer1 ? timer1Circumference : timer2Circumference;
@@ -162,6 +158,59 @@
     startButton.disabled = false;
   }
 
+  // Replace the Audio elements with sound generation functions
+  function playBuzzerSound() {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create oscillator for buzzer sound
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Buzzer settings
+    oscillator.type = 'square';
+    oscillator.frequency.setValueAtTime(150, audioContext.currentTime); // Low frequency
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    
+    // Start and stop the sound
+    oscillator.start();
+    setTimeout(() => {
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 500);
+    }, 400);
+  }
+
+  function playDingSound() {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create oscillator for ding sound
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Ding settings
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime); // Higher frequency
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    
+    // Start and stop the sound
+    oscillator.start();
+    setTimeout(() => {
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 200);
+    }, 100);
+  }
+
   function startTimers() {
     startButton.disabled = true;
 
@@ -172,7 +221,7 @@
         updateCircleProgress(timer1Remaining, true);
         
         if (timer1Remaining <= 0) {
-          buzzerSound.play();
+          playBuzzerSound(); // Replace buzzerSound.play()
           isTimer1Active = false;
           timerDisplay.textContent = formatTime(timer2Remaining);
         }
@@ -182,7 +231,7 @@
         updateCircleProgress(timer2Remaining, false);
         
         if (timer2Remaining <= 0) {
-          dingSound.play();
+          playDingSound(); // Replace dingSound.play()
           resetTimers();
           startTimers();
           return;
