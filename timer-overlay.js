@@ -123,13 +123,59 @@
   `;
   document.head.appendChild(style);
 
-  // Timer logic
-  const timer1Duration = 25 * 60 * 1000; // 25 minutes
-  const timer2Duration = 5 * 60 * 1000;  // 5 minutes
+  // Timer logic with state management
+  const STORAGE_KEY = 'timerOverlayState';
+  const timer1Duration = 25 * 60 * 1000;
+  const timer2Duration = 5 * 60 * 1000;
   let interval;
   let isTimer1Active = true;
   let timer1Remaining = timer1Duration;
   let timer2Remaining = timer2Duration;
+  let isRunning = false;
+  let lastUpdateTime;
+
+  // State management functions
+  function saveState() {
+    const state = {
+      isTimer1Active,
+      timer1Remaining,
+      timer2Remaining,
+      isRunning,
+      lastUpdateTime: isRunning ? Date.now() : null
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadState() {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (!savedState) return false;
+
+    const state = JSON.parse(savedState);
+    isTimer1Active = state.isTimer1Active;
+    timer1Remaining = state.timer1Remaining;
+    timer2Remaining = state.timer2Remaining;
+    isRunning = state.isRunning;
+    lastUpdateTime = state.lastUpdateTime;
+
+    // Compensate for time passed while page was closed
+    if (isRunning && lastUpdateTime) {
+      const timePassed = Date.now() - lastUpdateTime;
+      if (isTimer1Active) {
+        timer1Remaining = Math.max(0, timer1Remaining - timePassed);
+        if (timer1Remaining === 0) {
+          isTimer1Active = false;
+          playBuzzerSound();
+        }
+      } else {
+        timer2Remaining = Math.max(0, timer2Remaining - timePassed);
+        if (timer2Remaining === 0) {
+          resetTimers();
+          return false;
+        }
+      }
+    }
+    return true;
+  }
 
   function updateCircleProgress(remaining, isTimer1) {
     const duration = isTimer1 ? timer1Duration : timer2Duration;
@@ -147,15 +193,22 @@
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   }
 
+  function updateDisplay() {
+    timerDisplay.textContent = formatTime(isTimer1Active ? timer1Remaining : timer2Remaining);
+    updateCircleProgress(timer1Remaining, true);
+    updateCircleProgress(timer2Remaining, false);
+    startButton.disabled = isRunning;
+  }
+
   function resetTimers() {
     clearInterval(interval);
     timer1Remaining = timer1Duration;
     timer2Remaining = timer2Duration;
-    timerDisplay.textContent = formatTime(timer1Duration);
-    updateCircleProgress(timer1Remaining, true);
-    updateCircleProgress(timer2Remaining, false);
     isTimer1Active = true;
-    startButton.disabled = false;
+    isRunning = false;
+    lastUpdateTime = null;
+    updateDisplay();
+    saveState();
   }
 
   // Replace the Audio elements with sound generation functions
@@ -212,41 +265,75 @@
   }
 
   function startTimers() {
+    isRunning = true;
     startButton.disabled = true;
+    lastUpdateTime = Date.now();
+    saveState();
 
     const updateTimer = () => {
+      const now = Date.now();
+      const delta = now - lastUpdateTime;
+      lastUpdateTime = now;
+
       if (isTimer1Active) {
-        timer1Remaining -= 1000;
-        timerDisplay.textContent = formatTime(timer1Remaining);
-        updateCircleProgress(timer1Remaining, true);
+        timer1Remaining = Math.max(0, timer1Remaining - delta);
+        updateDisplay();
         
         if (timer1Remaining <= 0) {
-          playBuzzerSound(); // Replace buzzerSound.play()
+          playBuzzerSound();
           isTimer1Active = false;
-          timerDisplay.textContent = formatTime(timer2Remaining);
+          saveState();
         }
       } else {
-        timer2Remaining -= 1000;
-        timerDisplay.textContent = formatTime(timer2Remaining);
-        updateCircleProgress(timer2Remaining, false);
+        timer2Remaining = Math.max(0, timer2Remaining - delta);
+        updateDisplay();
         
         if (timer2Remaining <= 0) {
-          playDingSound(); // Replace dingSound.play()
+          playDingSound();
           resetTimers();
           startTimers();
           return;
         }
       }
+      saveState();
     };
 
     updateTimer();
     interval = setInterval(updateTimer, 1000);
   }
 
-  // Initialize display
-  resetTimers();
+  // Page visibility handling
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (isRunning) {
+        clearInterval(interval);
+        lastUpdateTime = Date.now();
+        saveState();
+      }
+    } else {
+      if (isRunning) {
+        loadState();
+        startTimers();
+      }
+    }
+  });
+
+  // Initialize
+  function initialize() {
+    if (loadState()) {
+      updateDisplay();
+      if (isRunning) {
+        startTimers();
+      }
+    } else {
+      resetTimers();
+    }
+  }
 
   // Event listeners
   startButton.addEventListener('click', startTimers);
   resetButton.addEventListener('click', resetTimers);
+
+  // Initialize on load
+  initialize();
 })();
