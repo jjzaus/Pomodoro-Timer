@@ -134,47 +134,96 @@
   let isRunning = false;
   let lastUpdateTime;
 
-  // State management functions
+  // Add debug logging function
+  const debug = (message) => {
+    console.log(`[Timer Debug] ${message}`);
+  };
+
+  // Check localStorage availability
+  function isLocalStorageAvailable() {
+    try {
+      const test = '__storage_test__';
+      localStorage.setItem(test, test);
+      localStorage.removeItem(test);
+      return true;
+    } catch (e) {
+      debug('localStorage not available: ' + e.message);
+      return false;
+    }
+  }
+
+  // Modified state management functions with error handling
   function saveState() {
-    const state = {
-      isTimer1Active,
-      timer1Remaining,
-      timer2Remaining,
-      isRunning,
-      lastUpdateTime: isRunning ? Date.now() : null
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!isLocalStorageAvailable()) return;
+    
+    try {
+      const state = {
+        isTimer1Active,
+        timer1Remaining,
+        timer2Remaining,
+        isRunning,
+        lastUpdateTime: isRunning ? Date.now() : null,
+        version: '1.0' // Add version tracking
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      debug('State saved: ' + JSON.stringify(state));
+    } catch (e) {
+      debug('Error saving state: ' + e.message);
+    }
   }
 
   function loadState() {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (!savedState) return false;
+    if (!isLocalStorageAvailable()) return false;
 
-    const state = JSON.parse(savedState);
-    isTimer1Active = state.isTimer1Active;
-    timer1Remaining = state.timer1Remaining;
-    timer2Remaining = state.timer2Remaining;
-    isRunning = state.isRunning;
-    lastUpdateTime = state.lastUpdateTime;
+    try {
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      debug('Loading saved state: ' + savedState);
+      
+      if (!savedState) {
+        debug('No saved state found');
+        return false;
+      }
 
-    // Compensate for time passed while page was closed
-    if (isRunning && lastUpdateTime) {
-      const timePassed = Date.now() - lastUpdateTime;
-      if (isTimer1Active) {
-        timer1Remaining = Math.max(0, timer1Remaining - timePassed);
-        if (timer1Remaining === 0) {
-          isTimer1Active = false;
-          playBuzzerSound();
-        }
-      } else {
-        timer2Remaining = Math.max(0, timer2Remaining - timePassed);
-        if (timer2Remaining === 0) {
-          resetTimers();
-          return false;
+      const state = JSON.parse(savedState);
+      
+      // Validate state data
+      if (!state || typeof state !== 'object') {
+        debug('Invalid state format');
+        return false;
+      }
+
+      isTimer1Active = state.isTimer1Active;
+      timer1Remaining = state.timer1Remaining;
+      timer2Remaining = state.timer2Remaining;
+      isRunning = state.isRunning;
+      lastUpdateTime = state.lastUpdateTime;
+
+      // Compensate for time passed while page was closed
+      if (isRunning && lastUpdateTime) {
+        const timePassed = Date.now() - lastUpdateTime;
+        debug(`Time passed while closed: ${timePassed}ms`);
+
+        if (isTimer1Active) {
+          timer1Remaining = Math.max(0, timer1Remaining - timePassed);
+          if (timer1Remaining === 0) {
+            isTimer1Active = false;
+            playBuzzerSound();
+          }
+        } else {
+          timer2Remaining = Math.max(0, timer2Remaining - timePassed);
+          if (timer2Remaining === 0) {
+            resetTimers();
+            return false;
+          }
         }
       }
+      
+      debug('State loaded successfully');
+      return true;
+    } catch (e) {
+      debug('Error loading state: ' + e.message);
+      return false;
     }
-    return true;
   }
 
   function updateCircleProgress(remaining, isTimer1) {
@@ -318,14 +367,20 @@
     }
   });
 
-  // Initialize
+  // Modified initialize function with debugging
   function initialize() {
+    debug('Initializing timer...');
+    debug('Storage available: ' + isLocalStorageAvailable());
+    
     if (loadState()) {
+      debug('Restored previous state');
       updateDisplay();
       if (isRunning) {
+        debug('Resuming timer');
         startTimers();
       }
     } else {
+      debug('Starting fresh timer');
       resetTimers();
     }
   }
@@ -333,6 +388,12 @@
   // Event listeners
   startButton.addEventListener('click', startTimers);
   resetButton.addEventListener('click', resetTimers);
+
+  // Add unload handler to ensure state is saved
+  window.addEventListener('beforeunload', () => {
+    debug('Page unloading - saving final state');
+    saveState();
+  });
 
   // Initialize on load
   initialize();
