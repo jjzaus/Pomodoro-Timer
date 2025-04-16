@@ -7,7 +7,7 @@ A customizable timer overlay with dual countdown functionality.
 Add this script to your webpage using jsDelivr CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/YOUR-USERNAME/timer-scripts@main/timer-overlay.js"></script>
+<script>https://cdn.jsdelivr.net/gh/jjzaus/Pomodoro-Timer@main/timer-overlay.js</script>
 ```
 
 ## Features
